@@ -1,0 +1,82 @@
+Weight lifting problem
+========================================================
+
+This document describes the steps followed to build a classifier to identify the manner in which a weight lifting exercise has been performed, based on data registered by four sets of sensors located in:
+* Arm
+* Forearm
+* Belt
+* Dumbbell
+
+First, we import the data set
+```{r}
+train <- read.csv('pml-training.csv')
+test <- read.csv('pml-testing.csv')
+```
+Then we check the dimensions of the data sets
+```{r}
+dim(train)
+names(train)
+```
+The names of the variables contain the location of the sensor (arm, belt, etc.).
+In summary, we have:
+* first column: index -> uninformative
+* second column: user -> uninformative
+* columns 3 to 7: time related vars -> idem
+* 4X38 columns with the vars taken from:
+* belt (8:45)
+* arm (46:83)
+* dumbbell (84:121)
+* forearm (122:159)
+* classe (160) -> target
+
+We convert all vars to numeric in both data sets
+```{r}
+for (i in 8:159){
+  train[,i] <- as.numeric(train[,i])
+}
+for (i in 8:159){
+  test[,i] <- as.numeric(test[,i])
+}
+```
+We search for NAs and remove the correspondent columns
+```{r}
+NA11<- sapply(test, FUN=is.na)
+NA21 <- sapply(data.frame(NA11), FUN=sum)
+NA31 <- which(NA21>0)
+test1 <- test[,-NA31]
+train1 <- train[,-NA31]
+```
+We will create 5 folds to run cross-validation
+```{r}
+library(caret)
+set.seed(2541)
+folds <- createFolds(train1$classe, k=5,
+                              list=FALSE)
+```
+We build a Random Forest for each fold.
+The class error will be stored in a matrix
+```{r}
+library(randomForest)
+for (i in 1:5){
+  randf <- randomForest(x=train1[(folds==i),-c(60)],
+                         y=train1[(folds==i),60], 
+                         ntree=200)
+  if (i == 1){
+  foldError <- round(randf$confusion[,6], digits=3)
+  }
+  foldError <- cbind(foldError, 
+                     round(randf$confusion[,6], digits=3))
+  plot(randf, main=paste ('Fold ', i))
+}
+```
+The plots show that the models converged with (less than) 200 trees.
+We take a look at the results in terms of class error:
+```{r}
+foldError
+```
+The error is quite low and consistent. Random Forest are robust and almost insensitive to the hyper-parameters (ntree and mtry). 
+We compute the expected class error as the average for each fold.
+```{r}
+expError <- round(rowMeans(foldError), digits=3)
+expError
+```
